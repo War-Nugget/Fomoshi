@@ -1,8 +1,9 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   api,
   type Action,
+  type ChartRange,
   type OrderBook,
   type Position,
   type Preview,
@@ -11,6 +12,7 @@ import {
 } from "../api";
 import { useAuth } from "../auth";
 import { ChanceBar } from "../components/ChanceBar";
+import { PriceChart, RangePicker, type ChartLine } from "../components/PriceChart";
 import { cents, chance, closesIn, count, money, percent, signedMoney } from "../format";
 import { usePolling } from "../usePolling";
 
@@ -25,32 +27,68 @@ export function Market() {
     [ticker, user?.id],
   );
   const [side, setSide] = useState<Side>("yes");
+  const [range, setRange] = useState<ChartRange>("1w");
+  const history = usePolling(() => api.marketHistory(ticker, range), 60_000, [ticker, range]);
+  const chartLines: ChartLine[] = useMemo(
+    () => [
+      {
+        id: ticker,
+        label: "Yes",
+        color: "var(--yes)",
+        points: (history.data?.points ?? []).map((pt) => ({ time: pt.t, value: pt.p })),
+      },
+    ],
+    [history.data, ticker],
+  );
 
   if (market.error && !market.data) {
     return (
       <p className="notice notice--error">
-        {market.error}. <Link to="/">Back to markets</Link>
+        {market.error}. <Link to="/markets">Back to markets</Link>
       </p>
     );
   }
   const m = market.data;
   if (!m) return <p className="notice">Loading market…</p>;
   const p = chance(m);
+  const settled = m.result === "yes" || m.result === "no";
 
   return (
     <div className="market">
       <div className="market__main">
-        <Link to="/" className="back-link">
+        <Link to="/markets" className="back-link">
           All markets
         </Link>
-        <p className="market__event">{m.event_title}</p>
+        <p className="market__event">
+          <Link to={`/events/${m.event_ticker}`}>{m.event_title || "View event"}</Link>
+        </p>
         <h1 className="market__title">{m.label}</h1>
 
-        <div className="market__chance">
-          <span className="market__pct">{percent(p)}</span>
-          <span className="market__pct-label">chance of yes</span>
+        {settled ? (
+          <div className={`settled-banner settled-banner--${m.result}`} role="status">
+            This market settled <strong>{m.result === "yes" ? "Yes" : "No"}</strong>. Positions
+            have been paid out.
+          </div>
+        ) : (
+          <>
+            <div className="market__chance">
+              <span className="market__pct">{percent(p)}</span>
+              <span className="market__pct-label">chance of yes</span>
+            </div>
+            <ChanceBar chance={p} size="lg" />
+          </>
+        )}
+
+        <div className="chart-head">
+          <h2>Chance over time</h2>
+          <RangePicker value={range} onChange={setRange} />
         </div>
-        <ChanceBar chance={p} size="lg" />
+        <PriceChart
+          lines={chartLines}
+          format="percent"
+          loading={!history.data}
+          ariaLabel={`Chance of yes over time for ${m.label}`}
+        />
 
         <dl className="stats">
           <div>
@@ -88,7 +126,7 @@ export function Market() {
           onSideChange={setSide}
           prices={{ yes: m.yes_ask, no: m.no_ask, yesBid: m.yes_bid, noBid: m.no_bid }}
           holdings={holdings.data ?? []}
-          tradable={m.status === "active" || m.status === "open"}
+          tradable={(m.status === "active" || m.status === "open") && !settled}
           onTraded={() => {
             holdings.reload();
             book.reload();

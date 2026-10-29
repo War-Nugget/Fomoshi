@@ -4,8 +4,10 @@ import { api, getToken, setToken, type User } from "./api";
 interface AuthState {
   user: User | null;
   loading: boolean;
-  signIn: (username: string, password: string) => Promise<void>;
-  signUp: (username: string, password: string) => Promise<void>;
+  signIn: (usernameOrEmail: string, password: string) => Promise<void>;
+  signUp: (username: string, email: string, password: string) => Promise<void>;
+  /** Store a token from reset/change-password and load the user. */
+  startSession: (token: string) => Promise<void>;
   signOut: () => void;
   refresh: () => Promise<void>;
 }
@@ -35,26 +37,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("fomoshi:signed-out", onSignedOut);
   }, [refresh]);
 
-  const signIn = async (username: string, password: string) => {
-    setToken((await api.login(username, password)).access_token);
+  const startSession = async (token: string) => {
+    setToken(token);
     await refresh();
   };
 
-  const signUp = async (username: string, password: string) => {
-    setToken((await api.register(username, password)).access_token);
-    await refresh();
+  const value: AuthState = {
+    user,
+    loading,
+    refresh,
+    startSession,
+    signIn: async (u, p) => startSession((await api.login(u, p)).access_token),
+    signUp: async (u, e, p) => startSession((await api.register(u, e, p)).access_token),
+    signOut: () => {
+      setToken(null);
+      setUser(null);
+    },
   };
 
-  const signOut = () => {
-    setToken(null);
-    setUser(null);
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, refresh }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

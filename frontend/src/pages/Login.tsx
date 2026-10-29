@@ -1,16 +1,20 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
 
 export function Login() {
   const { user, signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<"signin" | "signup">("signup");
+  const location = useLocation();
+  const state = location.state as { from?: string; mode?: "signin" | "signup" } | null;
+  const [mode, setMode] = useState<"signin" | "signup">(state?.mode ?? "signup");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
-  const from = (useLocation().state as { from?: string } | null)?.from ?? "/";
+  const from = state?.from ?? "/markets";
 
   if (user) return <Navigate to={from} replace />;
 
@@ -19,7 +23,8 @@ export function Login() {
     setBusy(true);
     setError(null);
     try {
-      await (mode === "signup" ? signUp : signIn)(username, password);
+      if (mode === "signup") await signUp(username, email, password);
+      else await signIn(username, password);
       navigate(from, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -29,48 +34,37 @@ export function Login() {
   };
 
   return (
-    <div className="login">
-      <div className="login__pitch">
-        <h1>Bet on what happens next, with money that isn’t real.</h1>
-        <p>
-          Every account starts with $1,000 in play money. Trade YES or NO on live prediction
-          markets at real prices, and see how good your calls actually are.
+    <div className="auth-page">
+      <form className="panel auth-form" onSubmit={submit}>
+        <h1>{mode === "signup" ? "Create your account" : "Welcome back"}</h1>
+        <p className="auth-form__lede">
+          {mode === "signup"
+            ? "You’ll start with $1,000 in play money."
+            : "Sign in with your username or email."}
         </p>
-        <ChanceExample />
-      </div>
 
-      <form className="panel login__form" onSubmit={submit}>
-        <div className="segmented" role="tablist" aria-label="Account">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "signup"}
-            onClick={() => setMode("signup")}
-          >
-            Create account
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "signin"}
-            onClick={() => setMode("signin")}
-          >
-            Sign in
-          </button>
-        </div>
         <label className="field">
-          <span>Username</span>
+          <span>{mode === "signup" ? "Username" : "Username or email"}</span>
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
-            minLength={3}
-            maxLength={30}
-            pattern="[A-Za-z0-9_]+"
-            title="Letters, numbers, and underscores"
+            {...(mode === "signup"
+              ? { minLength: 3, maxLength: 30, pattern: "[A-Za-z0-9_]+", title: "Letters, numbers, and underscores" }
+              : {})}
             required
           />
+          {mode === "signup" && <small>Shown on leaderboards. Letters, numbers, and underscores.</small>}
         </label>
+
+        {mode === "signup" && (
+          <label className="field">
+            <span>Email</span>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
+            <small>Only used to reset your password.</small>
+          </label>
+        )}
+
         <label className="field">
           <span>Password</span>
           <input
@@ -78,11 +72,22 @@ export function Login() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            minLength={8}
+            minLength={mode === "signup" ? 8 : undefined}
             required
           />
           {mode === "signup" && <small>At least 8 characters</small>}
         </label>
+
+        {mode === "signup" && (
+          <label className="checkbox">
+            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} required />
+            <span>
+              I’m 18 or older and agree to the <Link to="/terms">terms</Link> and{" "}
+              <Link to="/privacy">privacy policy</Link>.
+            </span>
+          </label>
+        )}
+
         {error && (
           <p className="form-error" role="alert">
             {error}
@@ -91,23 +96,28 @@ export function Login() {
         <button className="button button--block" disabled={busy}>
           {busy ? "One moment…" : mode === "signup" ? "Create account" : "Sign in"}
         </button>
-      </form>
-    </div>
-  );
-}
 
-function ChanceExample() {
-  return (
-    <div className="login__example" aria-hidden="true">
-      <div className="login__example-row">
-        <span>YES costs 41¢</span>
-        <span>NO costs 59¢</span>
-      </div>
-      <div className="chance-bar chance-bar--lg">
-        <span className="chance-bar__yes" style={{ flexGrow: 0.41 }} />
-        <span className="chance-bar__no" style={{ flexGrow: 0.59 }} />
-      </div>
-      <p>Whichever side is right pays $1 per contract. The price is the crowd’s odds.</p>
+        <div className="auth-form__links">
+          {mode === "signup" ? (
+            <span>
+              Have an account?{" "}
+              <button type="button" className="link-button" onClick={() => setMode("signin")}>
+                Sign in
+              </button>
+            </span>
+          ) : (
+            <>
+              <Link to="/forgot-password">Forgot your password?</Link>
+              <span>
+                New here?{" "}
+                <button type="button" className="link-button" onClick={() => setMode("signup")}>
+                  Create an account
+                </button>
+              </span>
+            </>
+          )}
+        </div>
+      </form>
     </div>
   );
 }

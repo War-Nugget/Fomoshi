@@ -1,0 +1,99 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# Creates Postgres, Key Value (Redis), the API, and the static frontend.
+# See DEPLOY.md for the two values you fill in after the first deploy.
+
+databases:
+  - name: fomoshi-db
+    databaseName: fomoshi
+    user: fomoshi
+    plan: free
+
+services:
+  - type: keyvalue
+    name: fomoshi-cache
+    plan: free
+    ipAllowList: []  # only reachable from your Render services
+    maxmemoryPolicy: allkeys-lru
+
+  - type: web
+    name: fomoshi-api
+    runtime: docker
+    rootDir: backend
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fomoshi-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: fomoshi-cache
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      # Free plan: run the background worker inside the API (a Postgres lock keeps
+      # it to one copy). On a paid plan, set this to "false" and add the worker below.
+      - key: RUN_WORKER_IN_PROCESS
+        value: "true"
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: KALSHI_MODE
+        value: live
+      - key: APP_URL
+        sync: false  # e.g. https://fomoshi-web.onrender.com or your domain
+      - key: CORS_ORIGINS
+        sync: false  # same as APP_URL
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
+  # Paid plans: a dedicated worker so settlement keeps running while the API sleeps.
+  # - type: worker
+  #   name: fomoshi-worker
+  #   runtime: docker
+  #   rootDir: backend
+  #   plan: starter
+  #   dockerCommand: python -m app.worker
+  #   envVars:
+  #     - key: ENVIRONMENT
+  #       value: production
+  #     - key: DATABASE_URL
+  #       fromDatabase: { name: fomoshi-db, property: connectionString }
+  #     - key: REDIS_URL
+  #       fromService: { type: keyvalue, name: fomoshi-cache, property: connectionString }
+  #     - key: SECRET_KEY
+  #       generateValue: true
+
+  - type: web
+    name: fomoshi-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+    routes:
+      # Forward API calls to the backend so the site and API share one origin.
+      # Replace the host if Render gives your API a different URL.
+      - type: rewrite
+        source: /api/*
+        destination: https://fomoshi-api.onrender.com/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html

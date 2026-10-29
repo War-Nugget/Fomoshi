@@ -1,115 +1,145 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { api, type EventSummary, type MarketSummary } from "../api";
-import { ChanceBar } from "../components/ChanceBar";
-import { cents, chance, closesIn, count, percent } from "../format";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { api, type EventSummary, type Sort } from "../api";
+import { EventBlock } from "../components/EventBlock";
 import { usePolling } from "../usePolling";
 
-const OUTCOMES_SHOWN = 4;
+const SORTS: { id: Sort; label: string }[] = [
+  { id: "trending", label: "Trending" },
+  { id: "volume", label: "Most traded" },
+  { id: "closing", label: "Closing soon" },
+  { id: "new", label: "Newest" },
+];
+const PAGE_SIZE = 20;
 
 export function Markets() {
-  const [query, setQuery] = useState("");
-  const [debounced, setDebounced] = useState("");
-  const [category, setCategory] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") ?? "";
+  const category = params.get("category") ?? "";
+  const sort = (params.get("sort") as Sort) || "trending";
 
+  const [query, setQuery] = useState(q);
+  const [events, setEvents] = useState<EventSummary[] | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const cats = usePolling(() => api.categories(), 0);
+
+  const update = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setParams(next, { replace: true });
+  };
+
+  // Debounce the search box into the URL
   useEffect(() => {
-    const id = window.setTimeout(() => setDebounced(query.trim()), 300);
+    const id = window.setTimeout(() => {
+      if (query.trim() !== q) update("q", query.trim());
+    }, 300);
     return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  const { data, error } = usePolling(() => api.events({ q: debounced }), 30_000, [debounced]);
-  const events = data?.events ?? [];
+  // Reload page 1 whenever filters change
+  useEffect(() => {
+    let cancelled = false;
+    setEvents(null);
+    setError(null);
+    api
+      .events({ q, category, sort, page: 1, page_size: PAGE_SIZE })
+      .then((r) => {
+        if (cancelled) return;
+        setEvents(r.events);
+        setPage(1);
+        setHasMore(r.has_more);
+        setTotal(r.total);
+      })
+      .catch((e) => !cancelled && setError(e.message));
+    return () => {
+      cancelled = true;
+    };
+  }, [q, category, sort]);
 
-  const categories = useMemo(
-    () => [...new Set(events.map((e) => e.category))].sort(),
-    [events],
-  );
-  const shown = category ? events.filter((e) => e.category === category) : events;
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const r = await api.events({ q, category, sort, page: page + 1, page_size: PAGE_SIZE });
+      setEvents((prev) => {
+        const seen = new Set(prev?.map((e) => e.event_ticker));
+        return [...(prev ?? []), ...r.events.filter((e) => !seen.has(e.event_ticker))];
+      });
+      setPage(page + 1);
+      setHasMore(r.has_more);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn’t load more markets");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   return (
     <>
       <div className="page-head">
         <h1>Markets</h1>
-        <input
-          className="search"
-          type="search"
-          placeholder="Search markets"
-          aria-label="Search markets"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div className="page-head__controls">
+          <input
+            className="search"
+            type="search"
+            placeholder="Search markets"
+            aria-label="Search markets"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <select aria-label="Sort markets" value={sort} onChange={(e) => update("sort", e.target.value === "trending" ? "" : e.target.value)}>
+            {SORTS.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {categories.length > 1 && (
+      {cats.data && cats.data.length > 1 && (
         <div className="chips" role="group" aria-label="Filter by category">
-          <button aria-pressed={category === null} onClick={() => setCategory(null)}>
+          <button aria-pressed={!category} onClick={() => update("category", "")}>
             All
           </button>
-          {categories.map((c) => (
-            <button key={c} aria-pressed={category === c} onClick={() => setCategory(c)}>
-              {c}
+          {cats.data.map((c) => (
+            <button key={c.name} aria-pressed={category === c.name} onClick={() => update("category", c.name)}>
+              {c.name}
             </button>
           ))}
         </div>
       )}
 
       {error && <p className="notice notice--error">{error}</p>}
-      {!data && !error && <p className="notice">Loading markets…</p>}
-      {data && shown.length === 0 && (
+      {!events && !error && <p className="notice">Loading markets…</p>}
+      {events && events.length === 0 && (
         <p className="notice">
-          {debounced ? `No open markets match “${debounced}”.` : "No open markets right now."}
+          {q ? `No open markets match “${q}”.` : "No open markets in this category right now."}
+        </p>
+      )}
+      {events && events.length > 0 && (q || category) && (
+        <p className="result-count">
+          {total.toLocaleString()} {total === 1 ? "event" : "events"}
         </p>
       )}
 
       <div className="event-list">
-        {shown.map((e) => (
-          <EventBlock key={e.event_ticker} event={e} />
-        ))}
+        {events?.map((e) => <EventBlock key={e.event_ticker} event={e} />)}
       </div>
-    </>
-  );
-}
 
-function EventBlock({ event }: { event: EventSummary }) {
-  const [expanded, setExpanded] = useState(false);
-  const markets = expanded ? event.markets : event.markets.slice(0, OUTCOMES_SHOWN);
-  const single = event.markets.length === 1;
-  return (
-    <section className="event">
-      <header className="event__head">
-        <h2>{event.title}</h2>
-        <span className="event__meta">{event.category}</span>
-      </header>
-      <ul className="outcomes">
-        {markets.map((m) => (
-          <OutcomeRow key={m.ticker} market={m} showLabel={!single} />
-        ))}
-      </ul>
-      {event.markets.length > OUTCOMES_SHOWN && (
-        <button className="link-button event__more" onClick={() => setExpanded(!expanded)}>
-          {expanded ? "Show fewer outcomes" : `Show all ${event.markets.length} outcomes`}
-        </button>
+      {hasMore && (
+        <div className="load-more">
+          <button className="button button--quiet" onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? "Loading…" : "Show more markets"}
+          </button>
+        </div>
       )}
-    </section>
-  );
-}
-
-function OutcomeRow({ market, showLabel }: { market: MarketSummary; showLabel: boolean }) {
-  const p = chance(market);
-  return (
-    <li>
-      <Link to={`/markets/${market.ticker}`} className="outcome">
-        <span className="outcome__label">{showLabel ? market.label : "Chance of yes"}</span>
-        <span className="outcome__pct">{percent(p)}</span>
-        <ChanceBar chance={p} />
-        <span className="outcome__prices">
-          <span className="price-tag price-tag--yes">Yes {cents(market.yes_ask)}</span>
-          <span className="price-tag price-tag--no">No {cents(market.no_ask)}</span>
-        </span>
-        <span className="outcome__meta">
-          {count(market.volume)} traded · {closesIn(market.close_time)}
-        </span>
-      </Link>
-    </li>
+    </>
   );
 }

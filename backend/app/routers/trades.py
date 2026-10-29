@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.db import get_db
 from app.kalshi.client import KalshiClient, get_kalshi
-from app.models import Trade, User
+from app.models import Position, Trade, User
 from app.money import MICROS, to_dollars, to_micros
+from app.ratelimit import rate_limit
 from app.schemas import FillOut, PreviewOut, TradeIn, TradeOut, TradeResult
 from app.trading.engine import execute_trade
 from app.trading.orderbook import parse_orderbook, simulate_fill
@@ -14,10 +15,11 @@ from app.trading.orderbook import parse_orderbook, simulate_fill
 router = APIRouter(prefix="/api/trades", tags=["trades"])
 
 
-def trade_out(t: Trade) -> TradeOut:
+def trade_out(t: Trade, title: str = "") -> TradeOut:
     return TradeOut(
         id=t.id,
         ticker=t.ticker,
+        market_title=title,
         side=t.side,
         action=t.action,
         quantity=t.quantity,
@@ -28,7 +30,9 @@ def trade_out(t: Trade) -> TradeOut:
     )
 
 
-@router.post("/preview", response_model=PreviewOut)
+@router.post(
+    "/preview", response_model=PreviewOut, dependencies=[Depends(rate_limit("preview", 120, 60))]
+)
 async def preview(body: TradeIn, kalshi: KalshiClient = Depends(get_kalshi)):
     """What this order would fill at right now, without placing it."""
     book = parse_orderbook(await kalshi.get_orderbook(body.ticker))
@@ -43,7 +47,12 @@ async def preview(body: TradeIn, kalshi: KalshiClient = Depends(get_kalshi)):
     )
 
 
-@router.post("", response_model=TradeResult, status_code=201)
+@router.post(
+    "",
+    response_model=TradeResult,
+    status_code=201,
+    dependencies=[Depends(rate_limit("trade", 60, 60))],
+)
 async def place_trade(
     body: TradeIn,
     user: User = Depends(get_current_user),
@@ -52,7 +61,7 @@ async def place_trade(
 ):
     market = await kalshi.get_market(body.ticker)
     book = parse_orderbook(await kalshi.get_orderbook(body.ticker))
-    trade, fill = execute_trade(
+    trade, fill, user = execute_trade(
         db,
         user,
         market,
@@ -69,12 +78,18 @@ async def place_trade(
 
 @router.get("", response_model=list[TradeOut])
 def history(
-    limit: int = 100, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    limit: int = Query(100, ge=1, le=500),
+    before_id: int | None = Query(None, description="Return trades older than this id"),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    trades = db.scalars(
-        select(Trade)
-        .where(Trade.user_id == user.id)
-        .order_by(Trade.created_at.desc(), Trade.id.desc())
-        .limit(min(limit, 500))
-    ).all()
-    return [trade_out(t) for t in trades]
+    q = select(Trade).where(Trade.user_id == user.id)
+    if before_id:
+        q = q.where(Trade.id < before_id)
+    trades = db.scalars(q.order_by(Trade.id.desc()).limit(limit)).all()
+    titles = dict(
+        db.execute(
+            select(Position.ticker, Position.market_title).where(Position.user_id == user.id)
+        ).all()
+    )
+    return [trade_out(t, titles.get(t.ticker, "")) for t in trades]
