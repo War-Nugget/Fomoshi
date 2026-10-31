@@ -22,6 +22,7 @@ export function Layout() {
         </Link>
         <nav className="topbar__nav" aria-label="Main">
           <NavLink to="/markets">Markets</NavLink>
+          <NavLink to="/games">Games</NavLink>
           <NavLink to="/leaderboard">Leaderboard</NavLink>
           <NavLink to="/portfolio">Portfolio</NavLink>
         </nav>

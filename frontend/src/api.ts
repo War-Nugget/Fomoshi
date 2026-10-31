@@ -48,6 +48,27 @@ export interface EventsPage {
   has_more: boolean;
 }
 
+export interface Game {
+  event_ticker: string;
+  series_ticker: string;
+  league: string;
+  title: string;
+  start_time: string;
+  live: boolean;
+  team_a: MarketSummary; // label is the team name
+  team_b: MarketSummary;
+  tie: MarketSummary | null;
+  volume_24h: number;
+}
+
+export interface GamesPage {
+  games: Game[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+}
+
 export interface MarketDetail extends MarketSummary {
   event_title: string;
   series_ticker: string;
@@ -269,6 +290,8 @@ export const api = {
     request<{ series: SeriesHistory[] }>(`/api/events/${enc(eventTicker)}/history${qs({ range })}`),
   market: (ticker: string) => request<MarketDetail>(`/api/markets/${enc(ticker)}`),
   orderbook: (ticker: string) => request<OrderBook>(`/api/markets/${enc(ticker)}/orderbook`),
+  games: (p: { league?: string; page_size?: number } = {}) => request<GamesPage>(`/api/games${qs(p)}`),
+  gameLeagues: () => request<{ name: string; count: number }[]>("/api/games/leagues"),
   marketHistory: (ticker: string, range: ChartRange) =>
     request<{ points: HistoryPoint[] }>(`/api/markets/${enc(ticker)}/history${qs({ range })}`),
 

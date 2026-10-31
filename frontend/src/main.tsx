@@ -5,6 +5,7 @@ import { AuthProvider } from "./auth";
 import { Layout } from "./components/Layout";
 import { Account } from "./pages/Account";
 import { Event } from "./pages/Event";
+import { Games } from "./pages/Games";
 import { Landing } from "./pages/Landing";
 import { League } from "./pages/League";
 import { Leaderboard } from "./pages/Leaderboard";
@@ -26,6 +27,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/markets" element={<Markets />} />
             <Route path="/markets/:ticker" element={<Market />} />
             <Route path="/events/:eventTicker" element={<Event />} />
+            <Route path="/games" element={<Games />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/leagues/:id" element={<League />} />

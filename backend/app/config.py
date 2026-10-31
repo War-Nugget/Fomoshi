@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     settlement_interval_seconds: int = 60
     market_sync_interval_seconds: int = 300
     market_sync_max_pages: int = 50
+    games_sync_interval_seconds: int = 300
+    games_lookahead_hours: int = 72  # how far ahead the Games page lists matchups
+    games_sync_max_pages: int = 30  # pages of Kalshi's sports schedule (200 per page)
 
     # Web
     app_url: str = "http://localhost:5173"  # used in password-reset emails

@@ -6,6 +6,7 @@ Run from backend/:  python scripts/make_fixtures.py app/kalshi/fixtures
 import json
 import random
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 random.seed(7)
@@ -71,8 +72,59 @@ def d(x: float) -> str:
     return f"{x:.4f}"
 
 
+# Head-to-head games, listed the way Kalshi does: "Team A vs Team B" with one market
+# per side plus a tie market where draws count. Start offsets are minutes from
+# FIXTURE_NOW (2030-01-01), which the mock client moves to the current time.
+FIXTURE_NOW = datetime(2030, 1, 1, tzinfo=UTC)
+GAMES = [
+    (
+        "KXSAMPLEHOOPSGAME",
+        "KXSAMPLEHOOPSGAME-01",
+        "Seattle Tides vs Phoenix Flares",
+        "Sample Basketball",
+        -45,
+        [("SEA", "Seattle Tides", 0.62), ("PHX", "Phoenix Flares", 0.38)],
+    ),
+    (
+        "KXSAMPLESOCCERGAME",
+        "KXSAMPLESOCCERGAME-01",
+        "Kingsport vs Northgate",
+        "Sample Soccer",
+        -30,
+        # listed out of title order on purpose, as Kalshi sometimes does
+        [("NGT", "Northgate", 0.30), ("KIN", "Kingsport", 0.45), ("TIE", "Tie", 0.25)],
+    ),
+    (
+        "KXSAMPLEHOOPSGAME",
+        "KXSAMPLEHOOPSGAME-02",
+        "Chicago Lanterns vs Austin Mesas",
+        "Sample Basketball",
+        180,
+        [("CHI", "Chicago Lanterns", 0.55), ("AUS", "Austin Mesas", 0.45)],
+    ),
+    (
+        "KXSAMPLESOCCERGAME",
+        "KXSAMPLESOCCERGAME-02",
+        "Rivertown vs Lakeside",
+        "Sample Soccer",
+        26 * 60,
+        [("RIV", "Rivertown", 0.40), ("LAK", "Lakeside", 0.33), ("TIE", "Tie", 0.27)],
+    ),
+    (
+        "KXSAMPLEHOOPSGAME",
+        "KXSAMPLEHOOPSGAME-03",
+        "Portland Pines vs Memphis Kings",
+        "Sample Basketball",
+        10 * 24 * 60,  # beyond the Games page horizon
+        [("POR", "Portland Pines", 0.48), ("MEM", "Memphis Kings", 0.52)],
+    ),
+]
+
+
 events, books = [], {}
-for series, event, title, category, outcomes in EVENTS:
+
+
+def build_markets(event: str, title: str, outcomes) -> list[dict]:
     markets = []
     for suffix, label, p in outcomes:
         ticker = f"{event}-{suffix}"
@@ -114,6 +166,10 @@ for series, event, title, category, outcomes in EVENTS:
                 "rules_primary": f'Sample market for Fomoshi\'s offline mode. Resolves YES if "{label}" happens. Not a real Kalshi market.',
             }
         )
+    return markets
+
+
+for series, event, title, category, outcomes in EVENTS:
     events.append(
         {
             "event_ticker": event,
@@ -121,10 +177,52 @@ for series, event, title, category, outcomes in EVENTS:
             "title": title,
             "sub_title": "Sample data",
             "category": category,
-            "markets": markets,
+            "markets": build_markets(event, title, outcomes),
         }
     )
 
+milestones = []
+for series, event, title, competition, start_offset, outcomes in GAMES:
+    events.append(
+        {
+            "event_ticker": event,
+            "series_ticker": series,
+            "title": title,
+            "sub_title": "Sample data",
+            "category": "Sports",
+            "mutually_exclusive": True,
+            "product_metadata": {"competition": competition, "competition_scope": "Game"},
+            "markets": build_markets(event, title, outcomes),
+        }
+    )
+    start = FIXTURE_NOW + timedelta(minutes=start_offset)
+    milestones.append(
+        {
+            "id": f"sample-{event.lower()}",
+            "category": "Sports",
+            "type": "basketball_game" if "HOOPS" in series else "soccer_tournament_multi_leg",
+            "title": title,
+            "start_date": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "details": {"main_game_event_ticker": event},
+            "primary_event_tickers": [event],
+            "related_event_tickers": [event],
+        }
+    )
+# A schedule entry whose event is a season-long future, not a game: it must be ignored.
+milestones.append(
+    {
+        "id": "sample-champ",
+        "category": "Sports",
+        "type": "one_off_milestone",
+        "title": "Galaxy League championship",
+        "start_date": FIXTURE_NOW.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "details": {},
+        "primary_event_tickers": ["KXSAMPLECHAMP-01"],
+        "related_event_tickers": ["KXSAMPLECHAMP-01"],
+    }
+)
+
 (out / "events.json").write_text(json.dumps({"events": events, "cursor": ""}, indent=2))
 (out / "orderbooks.json").write_text(json.dumps(books, indent=2))
-print(len(events), "events,", len(books), "markets")
+(out / "milestones.json").write_text(json.dumps({"milestones": milestones, "cursor": ""}, indent=2))
+print(len(events), "events,", len(books), "markets,", len(milestones), "milestones")

@@ -8,16 +8,16 @@ from app.worker import sync_catalog
 
 def test_falls_back_to_live_before_first_sync(client):
     page = client.get("/api/markets").json()
-    assert len(page["events"]) == 6 and page["has_more"] is False
+    assert len(page["events"]) == 11 and page["has_more"] is False
 
 
 def test_listing_from_catalog(client, synced):
-    page = client.get("/api/markets", params={"page_size": 4}).json()
-    assert page["total"] == 6 and len(page["events"]) == 4 and page["has_more"]
-    page2 = client.get("/api/markets", params={"page_size": 4, "page": 2}).json()
-    assert len(page2["events"]) == 2 and not page2["has_more"]
+    page = client.get("/api/markets", params={"page_size": 6}).json()
+    assert page["total"] == 11 and len(page["events"]) == 6 and page["has_more"]
+    page2 = client.get("/api/markets", params={"page_size": 6, "page": 2}).json()
+    assert len(page2["events"]) == 5 and not page2["has_more"]
     seen = {e["event_ticker"] for e in page["events"] + page2["events"]}
-    assert len(seen) == 6  # pages don't overlap
+    assert len(seen) == 11  # pages don't overlap
 
     vols = [e["volume_24h"] for e in page["events"]]
     assert vols == sorted(vols, reverse=True)  # trending = 24h volume
@@ -37,7 +37,7 @@ def test_search_category_and_sort(client, synced):
     assert closing and all(e["close_time"] for e in closing)
 
     cats = {c["name"]: c["count"] for c in client.get("/api/markets/categories").json()}
-    assert cats["Entertainment"] == 2 and sum(cats.values()) == 6
+    assert cats["Entertainment"] == 2 and sum(cats.values()) == 11
 
 
 def test_unseen_markets_are_retired(client, synced, db):
@@ -46,7 +46,7 @@ def test_unseen_markets_are_retired(client, synced, db):
     row = db.scalar(select(SyncedMarket).where(SyncedMarket.ticker == "KXSAMPLECPI-01-ABOVE"))
     db.refresh(row)
     assert row.status == "inactive"
-    assert client.get("/api/markets").json()["total"] == 5
+    assert client.get("/api/markets").json()["total"] == 10
 
 
 def test_event_detail(client):

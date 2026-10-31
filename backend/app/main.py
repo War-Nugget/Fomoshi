@@ -11,7 +11,7 @@ from sqlalchemy import text
 from app.config import DEV_SECRET, get_settings
 from app.db import SessionLocal, run_migrations
 from app.kalshi.client import KalshiError, get_kalshi
-from app.routers import auth, markets, portfolio, social, trades
+from app.routers import auth, games, markets, portfolio, social, trades
 from app.trading.engine import TradeError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -111,6 +111,7 @@ def health():
 
 app.include_router(auth.router)
 app.include_router(markets.router)
+app.include_router(games.router)
 app.include_router(trades.router)
 app.include_router(portfolio.router)
 app.include_router(social.router)

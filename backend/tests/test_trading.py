@@ -1,5 +1,9 @@
 import asyncio
 
+import httpx
+
+from app.kalshi.client import LiveKalshiClient, get_kalshi
+from app.main import app
 from app.worker import settle_and_snapshot
 from tests.conftest import find_market, set_book
 
@@ -69,6 +73,36 @@ def test_no_liquidity_and_limits(client, auth, kalshi):
     set_book(kalshi, TICKER, yes=[(0.30, 100)], no=[(0.60, 100)])
     r = order(client, auth, limit_price=0.35)  # best YES ask is 0.40
     assert r.status_code == 400 and "No liquidity" in r.json()["detail"]
+
+
+def test_orders_fill_against_a_fresh_book(client, auth, kalshi):
+    """Previews may read a cached book; orders must see Kalshi's book as it is now."""
+    market = dict(find_market(kalshi, TICKER))
+    book = {"yes_dollars": [["0.3000", "100.00"]], "no_dollars": [["0.6000", "100.00"]]}
+
+    def kalshi_api(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/orderbook"):
+            return httpx.Response(200, json={"orderbook_fp": book})
+        return httpx.Response(200, json={"market": market})
+
+    live = LiveKalshiClient("https://kalshi.test")
+    live._http = httpx.AsyncClient(
+        base_url="https://kalshi.test", transport=httpx.MockTransport(kalshi_api)
+    )
+    app.dependency_overrides[get_kalshi] = lambda: live
+    body = {"ticker": TICKER, "side": "yes", "action": "buy", "quantity": 10}
+
+    assert client.post("/api/trades/preview", json=body).json()["avg_price"] == 0.40  # now cached
+    book["no_dollars"] = [["0.4500", "100.00"]]  # a score: YES jumps to 55¢ on Kalshi
+    assert client.post("/api/trades/preview", json=body).json()["avg_price"] == 0.40  # stale
+
+    result = order(client, auth).json()
+    assert result["trade"]["avg_price"] == 0.55  # not the stale 40¢
+    # the fresh read also refreshed the cache, so previews catch up too
+    assert client.post("/api/trades/preview", json=body).json()["avg_price"] == 0.55
+
+    market["status"] = "closed"  # winner declared; the cached market still says active
+    assert "not open" in order(client, auth).json()["detail"]
 
 
 def test_closed_market_rejected(client, auth, kalshi):

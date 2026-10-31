@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -59,8 +61,14 @@ async def place_trade(
     db: Session = Depends(get_db),
     kalshi: KalshiClient = Depends(get_kalshi),
 ):
-    market = await kalshi.get_market(body.ticker)
-    book = parse_orderbook(await kalshi.get_orderbook(body.ticker))
+    # Skip the cache: a book even a few seconds old lets someone watching a live game
+    # buy at a price the real market has already moved past, or trade a market that
+    # closed when the final whistle went.
+    market, raw_book = await asyncio.gather(
+        kalshi.get_market(body.ticker, fresh=True),
+        kalshi.get_orderbook(body.ticker, fresh=True),
+    )
+    book = parse_orderbook(raw_book)
     trade, fill, user = execute_trade(
         db,
         user,

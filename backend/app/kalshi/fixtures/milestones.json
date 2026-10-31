@@ -1,0 +1,99 @@
+{
+  "milestones": [
+    {
+      "id": "sample-kxsamplehoopsgame-01",
+      "category": "Sports",
+      "type": "basketball_game",
+      "title": "Seattle Tides vs Phoenix Flares",
+      "start_date": "2029-12-31T23:15:00Z",
+      "details": {
+        "main_game_event_ticker": "KXSAMPLEHOOPSGAME-01"
+      },
+      "primary_event_tickers": [
+        "KXSAMPLEHOOPSGAME-01"
+      ],
+      "related_event_tickers": [
+        "KXSAMPLEHOOPSGAME-01"
+      ]
+    },
+    {
+      "id": "sample-kxsamplesoccergame-01",
+      "category": "Sports",
+      "type": "soccer_tournament_multi_leg",
+      "title": "Kingsport vs Northgate",
+      "start_date": "2029-12-31T23:30:00Z",
+      "details": {
+        "main_game_event_ticker": "KXSAMPLESOCCERGAME-01"
+      },
+      "primary_event_tickers": [
+        "KXSAMPLESOCCERGAME-01"
+      ],
+      "related_event_tickers": [
+        "KXSAMPLESOCCERGAME-01"
+      ]
+    },
+    {
+      "id": "sample-kxsamplehoopsgame-02",
+      "category": "Sports",
+      "type": "basketball_game",
+      "title": "Chicago Lanterns vs Austin Mesas",
+      "start_date": "2030-01-01T03:00:00Z",
+      "details": {
+        "main_game_event_ticker": "KXSAMPLEHOOPSGAME-02"
+      },
+      "primary_event_tickers": [
+        "KXSAMPLEHOOPSGAME-02"
+      ],
+      "related_event_tickers": [
+        "KXSAMPLEHOOPSGAME-02"
+      ]
+    },
+    {
+      "id": "sample-kxsamplesoccergame-02",
+      "category": "Sports",
+      "type": "soccer_tournament_multi_leg",
+      "title": "Rivertown vs Lakeside",
+      "start_date": "2030-01-02T02:00:00Z",
+      "details": {
+        "main_game_event_ticker": "KXSAMPLESOCCERGAME-02"
+      },
+      "primary_event_tickers": [
+        "KXSAMPLESOCCERGAME-02"
+      ],
+      "related_event_tickers": [
+        "KXSAMPLESOCCERGAME-02"
+      ]
+    },
+    {
+      "id": "sample-kxsamplehoopsgame-03",
+      "category": "Sports",
+      "type": "basketball_game",
+      "title": "Portland Pines vs Memphis Kings",
+      "start_date": "2030-01-11T00:00:00Z",
+      "details": {
+        "main_game_event_ticker": "KXSAMPLEHOOPSGAME-03"
+      },
+      "primary_event_tickers": [
+        "KXSAMPLEHOOPSGAME-03"
+      ],
+      "related_event_tickers": [
+        "KXSAMPLEHOOPSGAME-03"
+      ]
+    },
+    {
+      "id": "sample-champ",
+      "category": "Sports",
+      "type": "one_off_milestone",
+      "title": "Galaxy League championship",
+      "start_date": "2030-01-01T00:00:00Z",
+      "details": {},
+      "primary_event_tickers": [
+        "KXSAMPLECHAMP-01"
+      ],
+      "related_event_tickers": [
+        "KXSAMPLECHAMP-01"
+      ]
+    }
+  ],
+  "cursor": ""
+}

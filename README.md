@@ -16,7 +16,8 @@ Fomoshi mirrors every open market on [Kalshi](https://kalshi.com) through its pu
 
 - **Every open Kalshi market**, synced into the database every 5 minutes, with search, category filters, sorting (trending, most traded, closing soon, newest), and pagination
 - **Probability charts** (1D / 1W / 1M / All) from Kalshi's candlestick data, including multi-line charts for events with several outcomes
-- **Realistic fills**: orders walk the live order book level by level, with optional limit prices
+- **Games page**: live and upcoming head-to-head matchups (Team A vs Team B, plus a tie where draws count) from Kalshi's sports schedule, with a live badge and prices refreshing every 3 seconds
+- **Realistic fills**: orders walk the live order book level by level, with optional limit prices, and always read Kalshi's book fresh at trade time (never from cache), so in-game prices can't be sniped
 - **Automatic settlement**: winning contracts pay $1 when Kalshi decides a market
 - **Portfolio**: live P&L, settled positions, full trade history, and a daily account-value chart
 - **Leaderboard and private leagues** with invite codes, ranked by gain since joining

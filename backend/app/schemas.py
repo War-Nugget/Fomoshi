@@ -134,6 +134,28 @@ class EventHistory(BaseModel):
     series: list[SeriesHistory]
 
 
+# ---- games ----
+class GameOut(BaseModel):
+    event_ticker: str
+    series_ticker: str
+    league: str
+    title: str  # "Team A vs Team B"
+    start_time: datetime
+    live: bool  # started and still trading
+    team_a: MarketSummary  # first team in the title; its label is the team name
+    team_b: MarketSummary
+    tie: MarketSummary | None = None  # sports where a draw is possible
+    volume_24h: int
+
+
+class GamesPage(BaseModel):
+    games: list[GameOut]  # live games first, then upcoming by start time
+    total: int
+    page: int
+    page_size: int
+    has_more: bool
+
+
 # ---- trading ----
 class TradeIn(BaseModel):
     ticker: str = Field(max_length=100)

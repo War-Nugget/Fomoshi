@@ -147,6 +147,24 @@ class SyncedMarket(Base):
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class SyncedGame(Base):
+    """A head-to-head game (Team A vs Team B) from Kalshi's sports schedule. Prices
+    aren't stored here: the Games page reads them live from Kalshi."""
+
+    __tablename__ = "synced_games"
+
+    event_ticker: Mapped[str] = mapped_column(String(100), primary_key=True)
+    series_ticker: Mapped[str] = mapped_column(String(100), default="")
+    league: Mapped[str] = mapped_column(String(100), default="", index=True)
+    title: Mapped[str] = mapped_column(String(500), default="")
+    start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    team_a_ticker: Mapped[str] = mapped_column(String(100))  # first team in the title
+    team_b_ticker: Mapped[str] = mapped_column(String(100))
+    tie_ticker: Mapped[str] = mapped_column(String(100), default="")  # sports with draws
+    volume_24h: Mapped[int] = mapped_column(BigInteger, default=0)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 # ---------------------------------------------------------------- leagues
 
 

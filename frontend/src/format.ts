@@ -37,5 +37,18 @@ export function closesIn(iso: string | null): string {
   return `Closes in ${hours} hour${hours === 1 ? "" : "s"}`;
 }
 
-export const pnlClass = (n: number | null | undefined) =>
+/** "Today", "Tomorrow", or "Sunday, Nov 2" in the viewer's time zone. */
+export function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (d.toDateString() === new Date().toDateString()) return "Today";
+  if (d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+  return d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+}
+
+export const clockTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+
+export const pnlClass =(n: number | null | undefined) =>
   n == null || Math.abs(n) < 0.005 ? "" : n > 0 ? "gain" : "loss";
